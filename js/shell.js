@@ -128,6 +128,47 @@ export async function switchProfile(id, name = `#${id}`) {
   showToast(`Switched to ${name}`, 'success');
 }
 
+// ── Demo mode banner ─────────────────────────
+
+function demoRepoUrl() {
+  // <user>.github.io/<repo>/ → github.com/<user>/<repo>, so forks link to themselves.
+  const user = location.hostname.endsWith('.github.io') ? location.hostname.split('.')[0] : '';
+  const repo = location.pathname.split('/').filter(Boolean)[0] || '';
+  return user && repo ? `https://github.com/${encodeURIComponent(user)}/${encodeURIComponent(repo)}` : '';
+}
+
+export function initDemoBanner() {
+  if (!DEMO_MODE) return;
+  const banner = document.createElement('div');
+  banner.className = 'demo-banner';
+  banner.setAttribute('role', 'note');
+  const tag = document.createElement('span');
+  tag.className = 'demo-banner-tag';
+  tag.textContent = 'DEMO';
+  const text = document.createElement('span');
+  text.textContent = 'Progress is saved in this browser only.';
+  banner.append(tag, text);
+  const repo = demoRepoUrl();
+  if (repo) {
+    const link = document.createElement('a');
+    link.href = repo;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = 'Get the full version →';
+    banner.append(link);
+  }
+  document.getElementById('main')?.prepend(banner);
+
+  const logoTitle = document.querySelector('.logo-title');
+  if (logoTitle) {
+    const pill = document.createElement('span');
+    pill.className = 'logo-demo-tag';
+    pill.textContent = 'DEMO';
+    logoTitle.append(pill);
+  }
+  document.title = `DEMO · ${document.title}`;
+}
+
 // ── Sidebar ───────────────────────────────
 
 // Position the sliding active indicator in the sidebar nav (FLIP across rebuilds).

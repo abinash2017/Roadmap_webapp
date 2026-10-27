@@ -236,6 +236,47 @@ html[data-theme="hero"] .logo-icon .logo-glyph-hero { stroke: #7fd4ff; filter: d
   text-transform: uppercase;
 }
 
+/* Demo mode (static hosting) */
+.demo-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 4px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  text-align: center;
+  position: relative;
+  z-index: 51;
+}
+.demo-banner-tag {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+.demo-banner a {
+  color: var(--accent-light, var(--accent));
+  text-decoration: none;
+}
+.demo-banner a:hover { text-decoration: underline; }
+.logo-demo-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  -webkit-text-fill-color: var(--accent);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  vertical-align: middle;
+  text-shadow: none;
+}
+
 /* Overall Progress */
 .overall-progress {
   padding: 16px 20px;

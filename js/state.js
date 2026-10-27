@@ -46,7 +46,7 @@ export function normalizeTheme(themeId) {
 }
 
 export function getTheme() {
-  return normalizeTheme(state.cache._theme);
+  return state.cache._theme ? normalizeTheme(state.cache._theme) : 'neon';
 }
 
 export function setTheme(themeId) {

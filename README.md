@@ -8,8 +8,11 @@ and watch your progress grow. Your data is stored in your own local database.
 ![Runs locally](https://img.shields.io/badge/runs-100%25%20locally-05d9e8)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-**[Try the online demo](https://YOUR-USERNAME.github.io/YOUR-REPO/)**. It runs in your browser with nothing to install, and your progress is saved in that browser only.
-For the full version (database, multiple profiles, backups), follow the setup below.
+## ▶ [Live DEMO — try it in your browser](https://abinash2017.github.io/Roadmap_webapp/)
+
+> [!NOTE]
+> **This link is a DEMO.** It runs in your browser with nothing to install, but your progress is saved in that browser only, and multiple profiles, milestones and note history are turned off.
+> For the full version (database, multiple profiles, backups), follow the [setup below](#setup-windows).
 
 ---
 
@@ -240,7 +243,7 @@ When the app is opened from any address other than `localhost` / `127.0.0.1`, it
 1. Push the repo to GitHub.
 2. Go to **Settings → Pages** and set **Source** to **GitHub Actions**.
 3. The included workflow (`.github/workflows/pages.yml`) deploys the frontend on every push to `main`. It never uploads the `backend/` folder.
-4. Replace the demo link at the top of this README with `https://<your-username>.github.io/<repo-name>/`.
+4. Update the demo link at the top of this README to `https://<your-username>.github.io/<repo-name>/`.
 
 To try demo mode locally, open `http://127.0.0.1:8000/?demo`.
 

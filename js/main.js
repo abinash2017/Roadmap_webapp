@@ -7,7 +7,7 @@ import { showToast } from './toast.js';
 import { syncFromApi, activeMonths, migrateLegacyProgressKeys } from './api-ops.js';
 import { rotateQuoteIfDue } from './quotes.js';
 import { renderAll, setView, parseViewHash, initContentEvents } from './render.js';
-import { initShell, initQuickCapture, updateDbStatusIcon, renderTopbarQuote } from './shell.js';
+import { initShell, initQuickCapture, updateDbStatusIcon, renderTopbarQuote, initDemoBanner } from './shell.js';
 import { getMonthBlendedProgress } from './progress.js';
 import { playIntro } from './intro.js';
 
@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   initShell();
+  initDemoBanner();
   initContentEvents();
   renderAll();
 

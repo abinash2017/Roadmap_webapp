@@ -154,7 +154,7 @@ GO
 -- ============================================
 
 IF NOT EXISTS (SELECT 1 FROM app_settings WHERE [key] = 'theme')
-    INSERT INTO app_settings ([key], [value]) VALUES ('theme', 'dark');
+    INSERT INTO app_settings ([key], [value]) VALUES ('theme', 'neon');
 
 IF NOT EXISTS (SELECT 1 FROM app_settings WHERE [key] = 'active_profile_id')
     INSERT INTO app_settings ([key], [value]) VALUES ('active_profile_id', '1');
