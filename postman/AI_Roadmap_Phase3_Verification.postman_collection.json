@@ -1,0 +1,884 @@
+{
+  "info": {
+    "name": "AI Roadmap API — Phase 3 Verification",
+    "_postman_id": "ai-roadmap-phase3-verify",
+    "description": "Verifies the multi-profile backend (Phases 2 + 3). Run in order — later requests depend on state set by earlier ones.\n\nWhat this does:\n1. Confirms the API is healthy.\n2. Reads the current profile list as a baseline.\n3. Creates a throwaway `postman-test-*` profile with the `ai_fullstack` roadmap variant.\n4. Activates it, confirms it starts empty (isolation on reads).\n5. Writes checklist, leetcode, note, milestone, and per-profile settings on it.\n6. Reads them back to confirm the writes landed.\n7. Switches back to profile 1 and asserts NONE of those writes bled over.\n8. Confirms you cannot delete the active profile.\n9. Deletes the throwaway profile and confirms count is restored.\n\nYour existing profile-1 data is only read, never written.\n\nHow to run:\n- Postman: Import → Runner → pick collection → Run.\n- Newman:  `npx newman run \"postman/AI_Roadmap_Phase3_Verification.postman_collection.json\"`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "A. Health",
+      "item": [
+        {
+          "name": "GET /api/health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test(\"status = 'ok'\", () => pm.expect(data.status).to.eql('ok'));",
+                  "pm.test(\"database = 'connected'\", () => pm.expect(data.database).to.eql('connected'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "B. Baseline (profile 1, read-only)",
+      "item": [
+        {
+          "name": "GET /api/profiles (baseline)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('Has active_profile_id', () => pm.expect(data).to.have.property('active_profile_id'));",
+                  "pm.test('Has profiles array', () => pm.expect(data.profiles).to.be.an('array'));",
+                  "pm.test('At least one profile exists', () => pm.expect(data.profiles.length).to.be.at.least(1));",
+                  "pm.collectionVariables.set('baselineProfileCount', data.profiles.length);",
+                  "pm.collectionVariables.set('originalActiveProfileId', data.active_profile_id);",
+                  "console.log('Baseline: ' + data.profiles.length + ' profile(s), active=' + data.active_profile_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/profile (active)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('Has id', () => pm.expect(data).to.have.property('id'));",
+                  "pm.test('Has roadmap_variant', () => pm.expect(data).to.have.property('roadmap_variant'));",
+                  "pm.test('id matches active_profile_id', () => pm.expect(data.id).to.eql(Number(pm.collectionVariables.get('originalActiveProfileId'))));",
+                  "pm.collectionVariables.set('baselineLeetcodeTarget', data.leetcode_target);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profile"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/leetcode (profile 1 baseline)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('Has count', () => pm.expect(data).to.have.property('count'));",
+                  "pm.collectionVariables.set('baselineLeetcode', data.count);",
+                  "console.log('Profile 1 baseline LeetCode count: ' + data.count);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/leetcode",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leetcode"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "C. Create + activate test profile",
+      "item": [
+        {
+          "name": "POST /api/profiles (create test profile)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('testProfileName', 'postman-test-' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('Has id', () => pm.expect(data).to.have.property('id'));",
+                  "pm.test('created is true', () => pm.expect(data.created).to.eql(true));",
+                  "pm.collectionVariables.set('newProfileId', data.id);",
+                  "console.log('Created profile id=' + data.id + ' name=' + pm.collectionVariables.get('testProfileName'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"{{testProfileName}}\",\n  \"target_role\": \"AI + Full-Stack Backend Developer\",\n  \"roadmap_variant\": \"ai_fullstack\",\n  \"start_date\": \"2026-09-18\",\n  \"hours_per_day\": 3,\n  \"days_per_week\": 6,\n  \"leetcode_target\": 150\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/profiles (count increased)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "const baseline = Number(pm.collectionVariables.get('baselineProfileCount'));",
+                  "pm.test('Profile count = baseline + 1', () => pm.expect(data.profiles.length).to.eql(baseline + 1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/profiles/{{newProfileId}}/activate",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "const expected = Number(pm.collectionVariables.get('newProfileId'));",
+                  "pm.test('active_profile_id matches new id', () => pm.expect(data.active_profile_id).to.eql(expected));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles/{{newProfileId}}/activate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles", "{{newProfileId}}", "activate"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/profile (verify active is the new one)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "const expected = Number(pm.collectionVariables.get('newProfileId'));",
+                  "pm.test('Returned profile id matches', () => pm.expect(data.id).to.eql(expected));",
+                  "pm.test('roadmap_variant is ai_fullstack', () => pm.expect(data.roadmap_variant).to.eql('ai_fullstack'));",
+                  "pm.test('display_name matches test name', () => pm.expect(data.display_name).to.eql(pm.collectionVariables.get('testProfileName')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profile"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "D. New profile starts empty (read isolation)",
+      "item": [
+        {
+          "name": "GET /api/checklist/0 (empty)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('No checked items', () => pm.expect(Object.keys(data).length).to.eql(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/checklist/0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "checklist", "0"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/leetcode (= 0)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('count = 0', () => pm.expect(data.count).to.eql(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/leetcode",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leetcode"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/notes/0 (empty)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('content is empty', () => pm.expect(data.content).to.eql(''));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "0"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/milestones (empty)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('No milestones', () => pm.expect(data.length).to.eql(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/milestones",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "milestones"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "E. Write data on new profile",
+      "item": [
+        {
+          "name": "PUT /api/checklist/0/0 (checked)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('checked = true', () => pm.expect(data.checked).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"checked\": true }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/checklist/0/0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "checklist", "0", "0"]
+            }
+          }
+        },
+        {
+          "name": "PUT /api/leetcode (count 42)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('count = 42', () => pm.expect(data.count).to.eql(42));",
+                  "pm.test('saved = true', () => pm.expect(data.saved).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"count\": 42 }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/leetcode",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leetcode"]
+            }
+          }
+        },
+        {
+          "name": "PUT /api/notes/0 (test note)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('saved = true', () => pm.expect(data.saved).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"content\": \"note-from-postman-new-profile\" }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "0"]
+            }
+          }
+        },
+        {
+          "name": "POST /api/milestones (test milestone)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('created = true', () => pm.expect(data.created).to.eql(true));",
+                  "pm.collectionVariables.set('testMilestoneId', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"title\": \"postman-test-milestone\" }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/milestones",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "milestones"]
+            }
+          }
+        },
+        {
+          "name": "PUT /api/settings/daycheck_postman_test (per-profile)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('saved = true', () => pm.expect(data.saved).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"value\": \"new-profile-value\" }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/daycheck_postman_test",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "settings", "daycheck_postman_test"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "F. Read back on new profile",
+      "item": [
+        {
+          "name": "GET /api/checklist/0 (has one item)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('Item 0 is checked', () => pm.expect(data['0']).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/checklist/0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "checklist", "0"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/leetcode (= 42)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('count = 42', () => pm.expect(data.count).to.eql(42));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/leetcode",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leetcode"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/notes/0 (matches write)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('content matches', () => pm.expect(data.content).to.eql('note-from-postman-new-profile'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "0"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/milestones (has 1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('Exactly 1 milestone', () => pm.expect(data.length).to.eql(1));",
+                  "pm.test('Title matches', () => pm.expect(data[0].title).to.eql('postman-test-milestone'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/milestones",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "milestones"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/settings/daycheck_postman_test (per-profile)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('value matches new profile write', () => pm.expect(data.value).to.eql('new-profile-value'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/daycheck_postman_test",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "settings", "daycheck_postman_test"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "G. Switch back + verify isolation",
+      "item": [
+        {
+          "name": "POST /api/profiles/1/activate (back to profile 1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('active_profile_id = 1', () => pm.expect(data.active_profile_id).to.eql(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles/1/activate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles", "1", "activate"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/profile (id = 1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('id = 1', () => pm.expect(data.id).to.eql(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profile"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/leetcode (unchanged from baseline)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "const baseline = Number(pm.collectionVariables.get('baselineLeetcode'));",
+                  "pm.test('count = baseline (writes did NOT bleed over)', () => pm.expect(data.count).to.eql(baseline));",
+                  "pm.test('count is not 42', () => pm.expect(data.count).to.not.eql(42));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/leetcode",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leetcode"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/settings/daycheck_postman_test (isolated → null)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('value is null (not visible on profile 1)', () => pm.expect(data.value).to.be.null);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/daycheck_postman_test",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "settings", "daycheck_postman_test"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/milestones (no test milestone on profile 1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('No milestone titled postman-test-milestone', () => {",
+                  "  const found = data.some(m => m.title === 'postman-test-milestone');",
+                  "  pm.expect(found).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/milestones",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "milestones"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "H. Cleanup + guardrails",
+      "item": [
+        {
+          "name": "DELETE /api/profiles/1 (must fail — active)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "const data = pm.response.json();",
+                  "pm.test('Detail explains cannot-delete-active', () => pm.expect(String(data.detail).toLowerCase()).to.include('active'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles", "1"]
+            }
+          }
+        },
+        {
+          "name": "DELETE /api/profiles/{{newProfileId}} (cleanup)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('deleted = true', () => pm.expect(data.deleted).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles/{{newProfileId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles", "{{newProfileId}}"]
+            }
+          }
+        },
+        {
+          "name": "GET /api/profiles (count restored)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "const baseline = Number(pm.collectionVariables.get('baselineProfileCount'));",
+                  "pm.test('Count = baseline (test profile fully deleted)', () => pm.expect(data.profiles.length).to.eql(baseline));",
+                  "pm.test('Active profile is 1', () => pm.expect(data.active_profile_id).to.eql(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/profiles",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "profiles"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:8000", "type": "string" },
+    { "key": "newProfileId", "value": "", "type": "string" },
+    { "key": "testProfileName", "value": "", "type": "string" },
+    { "key": "testMilestoneId", "value": "", "type": "string" },
+    { "key": "baselineProfileCount", "value": "0", "type": "string" },
+    { "key": "baselineLeetcode", "value": "0", "type": "string" },
+    { "key": "baselineLeetcodeTarget", "value": "0", "type": "string" },
+    { "key": "originalActiveProfileId", "value": "1", "type": "string" }
+  ]
+}
